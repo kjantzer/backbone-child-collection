@@ -32,6 +32,10 @@ myCompany.get('employees')
 
 myCompany.get('employees').url() // = /api/company/1/employees
 
+// child collections have reference back to parent model
+var employeeColl = myCompany.get('employees');
+
+employeeColl.parentModel == myCompany // true
 ```
 
 ## License
