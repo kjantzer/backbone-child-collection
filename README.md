@@ -1,4 +1,4 @@
-# Backbone Child Collection
+# Backbone Child Collection 0.1.0
 
 > Used for REST collection that is child of a parent model.
 
