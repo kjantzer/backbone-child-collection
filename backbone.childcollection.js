@@ -1,5 +1,5 @@
 /*
-	Backbone Child Collection 0.2.0
+	Backbone Child Collection 0.4.0
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -10,6 +10,7 @@
 	
 	TODO
 	- what happenns if the parentModel is new? should collection not fetch/save?
+	- if the model is destroyed, we should probably clean up all child collections
 */
 
 Backbone.ChildCollection = Backbone.Collection.extend({
@@ -70,6 +71,10 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 		this.isFetching = true;
 		
 		Backbone.Collection.prototype.fetch.call(this, opts);
+	},
+	
+	_updateFromModel: function(models){
+		this.update(models);
 	}
 	
 });
@@ -100,6 +105,11 @@ _.extend(Backbone.Model.prototype, {
 		
 		// get the collection info for setup and determine if a Collection was given
 		var CollInfo = this.collections && this.collections[key];
+		
+		// is CollInfo a function (but not a Collection)? Call it to get the info 
+		if( CollInfo && _.isFunction(CollInfo) && CollInfo.prototype && !CollInfo.prototype.toJSON && !CollInfo.prototype.fetch )
+			CollInfo = CollInfo()
+		
 		var CollGiven = CollInfo && CollInfo.prototype && CollInfo.prototype.toJSON && CollInfo.prototype.fetch;
 		
 		// whoops, couldn't find a collection for the given key
@@ -130,10 +140,36 @@ _.extend(Backbone.Model.prototype, {
 		// create and store reference to this collection
 		var Coll = this.__childCollections[key] = new ChildColl(models, opts)
 		
+		// if the collection got its data from a model attribute, listen for when that attribute changes and update the collection 
+		// if( this.attributes[key] )
+		// 	Coll.listenTo(this, 'change:'+key, Coll._updateFromModel)
+		
 		// make sure parent model is set on the collection
 		Coll.parentModel = this;
 		
 		return Coll;
+	},
+	
+	_set: Backbone.Model.prototype.set,
+	
+	set: function(key, val, options){
+		
+		var attrs, self = this;
+		
+		if (_.isObject(key)) {
+			attrs = key;
+			options = val;
+		} else {
+			(attrs = {})[key] = val;
+		}
+		
+		if( self.__childCollections )
+		_.each(attrs, function(val, key){
+			if( self.__childCollections[key] )
+				self.__childCollections[key].update(val);
+		})
+		
+		return Backbone.Model.prototype._set.apply(this, arguments);
 	}
 	
 })
