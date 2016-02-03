@@ -1,4 +1,6 @@
-# Backbone Child Collection 0.2.0
+# Backbone Child Collection 0.3.0
+
+![Version 0.4.0](https://img.shields.io/badge/Version-0.4.0-blue.svg)
 
 > Used for REST collection that is child of a parent model.
 
@@ -62,6 +64,32 @@ var myCompany = new Company({
 // returns collection with two employees, Bob and Jill
 myCompany.get('employees');
 ```
+
+#### Collections setup
+
+You start by putting a list of `collections` on your model.
+
+```js
+collections: {} // no collections
+```
+
+Multiple structures are supported.
+
+```js
+collections: {
+	'employees': 'employees', // urlPath will be set with generic ChildCollection
+	'employees': EmployeesColl,
+	'employees': {
+		collection: EmployeesColl,
+		... // any other options listed here will be passed to collection on init
+	},
+	'employees': function(){ return EmployeesColl },
+	'employees': function(){ return {
+		collection: EmployeesColl,
+	}}
+}
+```
+
 
 ## License
 
