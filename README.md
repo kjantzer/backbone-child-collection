@@ -1,6 +1,6 @@
-# Backbone Child Collection 0.3.0
+# Backbone Child Collection 0.5.0
 
-![Version 0.4.0](https://img.shields.io/badge/Version-0.4.0-blue.svg)
+![Version 0.5.0](https://img.shields.io/badge/Version-0.5.0-blue.svg)
 
 > Used for REST collection that is child of a parent model.
 
@@ -77,19 +77,31 @@ Multiple structures are supported.
 
 ```js
 collections: {
-	'employees': 'employees', // urlPath will be set with generic ChildCollection
-	'employees': EmployeesColl,
-	'employees': {
-		collection: EmployeesColl,
-		... // any other options listed here will be passed to collection on init
-	},
-	'employees': function(){ return EmployeesColl },
-	'employees': function(){ return {
-		collection: EmployeesColl,
-	}}
+        'employees': 'employees', // urlPath will be set with generic ChildCollection
+        'employees': EmployeesColl,
+        'employees': {
+                collection: EmployeesColl,
+                ... // any other options listed here will be passed to collection on init
+        },
+        'employees': function(){ return EmployeesColl },
+        'employees': function(){ return {
+                collection: EmployeesColl,
+        }}
 }
 ```
 
+
+#### Properties and methods available
+
+`parentModel` – a reference to the parent model of this collection
+
+`urlPath` – the path to be appended to the URL of the parent model.
+
+`hasFetched` (BOOL) – Is set to `true` after a `fetch` happens.
+
+`isFetching` (BOOL) – Will be set to `true` while the `fetch` method is happening.
+
+`fetchOnce()` – Fetches collection if it has not been fetched yet. (Tests for `hasFetched`)
 
 ## License
 
