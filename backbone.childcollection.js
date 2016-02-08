@@ -1,5 +1,5 @@
 /*
-	Backbone Child Collection 0.4.0
+        Backbone Child Collection 0.4.0
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -73,6 +73,11 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 		Backbone.Collection.prototype.fetch.call(this, opts);
 	},
 	
+	fetchOnce: function(opts){
+		if( !this.hasFetched )
+			this.fetch(opts)
+	},
+	
 	_updateFromModel: function(models){
 		this.update(models);
 	}
@@ -105,11 +110,11 @@ _.extend(Backbone.Model.prototype, {
 		
 		// get the collection info for setup and determine if a Collection was given
 		var CollInfo = this.collections && this.collections[key];
-		
-		// is CollInfo a function (but not a Collection)? Call it to get the info 
-		if( CollInfo && _.isFunction(CollInfo) && CollInfo.prototype && !CollInfo.prototype.toJSON && !CollInfo.prototype.fetch )
-			CollInfo = CollInfo()
-		
+
+                // is CollInfo a function (but not a Collection)? Call it to get the info
+                if( CollInfo && _.isFunction(CollInfo) && CollInfo.prototype && !CollInfo.prototype.toJSON && !CollInfo.prototype.fetch )
+                        CollInfo = CollInfo()
+
 		var CollGiven = CollInfo && CollInfo.prototype && CollInfo.prototype.toJSON && CollInfo.prototype.fetch;
 		
 		// whoops, couldn't find a collection for the given key
