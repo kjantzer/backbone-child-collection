@@ -1,5 +1,5 @@
 /*
-        Backbone Child Collection 0.4.0
+        Backbone Child Collection 0.5.1
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -74,7 +74,7 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 	},
 	
 	fetchOnce: function(opts){
-		if( !this.hasFetched )
+		if( !this.hasFetched && !this.isFetching )
 			this.fetch(opts)
 	},
 	
