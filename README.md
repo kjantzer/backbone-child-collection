@@ -1,6 +1,6 @@
-# Backbone Child Collection 0.5.0
+# Backbone Child Collection 0.5.1
 
-![Version 0.5.0](https://img.shields.io/badge/Version-0.5.0-blue.svg)
+![Version 0.5.1](https://img.shields.io/badge/Version-0.5.1-blue.svg)
 
 > Used for REST collection that is child of a parent model.
 
