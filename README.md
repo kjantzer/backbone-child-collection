@@ -1,8 +1,9 @@
-# Backbone Child Collection 0.5.1
+# Backbone Child Collection 0.7.1
 
-![Version 0.5.1](https://img.shields.io/badge/Version-0.5.1-blue.svg)
+![Version 0.7.1](https://img.shields.io/badge/Version-0.7.1-blue.svg)
 
 > Used for REST collection that is child of a parent model.
+> **Update:** support for child `models` is in the works.
 
 ## Example
 
@@ -102,6 +103,10 @@ collections: {
 `isFetching` (BOOL) – Will be set to `true` while the `fetch` method is happening.
 
 `fetchOnce()` – Fetches collection if it has not been fetched yet. (Tests for `hasFetched`)
+
+`timeSinceLastFetch()` - Time in miliseconds since last fetched
+
+`fetch({stale:10000})` - Add a `stale` option to signify when the collection data becomes stale. A `fetch` request will not follow through until the data is stale.
 
 ## License
 
