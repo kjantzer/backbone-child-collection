@@ -1,5 +1,5 @@
 /*
-        Backbone Child Collection 0.5.1
+    Backbone Child Collection 0.7.1
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -13,10 +13,67 @@
 	- if the model is destroyed, we should probably clean up all child collections
 */
 
+Backbone.Collection.prototype.getOrCreate = function(id){
+
+    if( !id )
+        return null;
+
+    var model = this.get.apply(this, arguments)
+
+    // if no model, fetch and add the requested model
+    if( !model ){
+
+        id = id instanceof Backbone.Model ? id[id.idAttribute] : id;
+        var ModelClass = this.model || Backbone.Model;
+
+        var data = {}
+        data[ModelClass.prototype.idAttribute] = id;
+
+        // support for Backbone Relational
+        var model = ModelClass.findOrCreate
+                ? ModelClass.findOrCreate(data)
+                : new ModelClass(data);
+
+        model.needsFetching = true;
+
+        // add model to this collection
+        this.add(model);
+    }
+
+    return model;
+}
+
+Backbone.Collection.prototype.getOrFetch = function(id, success){
+
+    if( !id ){
+        if( success ) success(null)
+        return null;
+    }
+
+    var model = this.getOrCreate.apply(this, arguments)
+
+    // only one means we just created this model
+    if( model.needsFetching ){
+
+        delete model.needsFetching;
+        model.isFetching = true;
+
+        model.fetch({success: function(){
+            delete model.isFetching
+            if( success ) success(model)
+        }});
+    }else{
+        if( success ) success(model)
+    }
+
+    return model;
+}
+
 Backbone.ChildCollection = Backbone.Collection.extend({
 	
 	//urlPath: 'extra/path/after/parent-url' // make sure to set this. Can also be set with options
-	
+	//stale: 5000, // fetch() wont actually fetch until 5 seconds have passed
+
 	constructor: function(models, options){
 	
 		this.parentModel = options.parentModel;
@@ -58,10 +115,18 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 	},
 	
 	fetch: function(opts){
-		
+
 		var opts = opts || {};
+        var stale = opts.stale || this.stale;
 		var onSuccess = opts.success || null;
-		
+		var timeSinceLastFetch = this.timeSinceLastFetch()
+
+		// if a "stale" property was given, dont fetch until the date is considered stale
+		if( stale && timeSinceLastFetch && timeSinceLastFetch < stale )
+			return;
+
+		this.__lastFetched = new Date;
+
 		opts.success = function(){
 			this.hasFetched = true;
 			this.isFetching = false;
@@ -73,11 +138,17 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 		Backbone.Collection.prototype.fetch.call(this, opts);
 	},
 	
-	fetchOnce: function(opts){
-		if( !this.hasFetched && !this.isFetching )
-			this.fetch(opts)
+    fetchOnce: function(opts){
+        if( !this.hasFetched && !this.isFetching )
+            this.fetch(opts)
+        else if( opts && opts.success )
+            opts.success(this, this.models)
+    },
+
+	timeSinceLastFetch: function(){
+		return this.__lastFetched ? (new Date).getTime() - this.__lastFetched.getTime() : null;
 	},
-	
+
 	_updateFromModel: function(models){
 		this.update(models);
 	}
@@ -86,6 +157,7 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 
 _.extend(Backbone.Model.prototype, {
 	
+	// DEPRECATED - just use `get`
 	childCollection: function(key ){ return this.getCollection(key); }, // alias
 	
 	_get: Backbone.Model.prototype.get,
@@ -93,12 +165,19 @@ _.extend(Backbone.Model.prototype, {
 	// Overrides default to get a collection if no attribute for given `key` exists
 	get: function(key){
 		
-		// no collection found for key, return model attribute like normal
-		if( !this.collections || !this.collections[key] )
-			return Backbone.Model.prototype._get.apply(this, arguments)
+		// collection or model for this key?
+		if( this.collections && this.collections[key] )
+			return this.getCollection(key);
+		else if( this._childModel(key) )
+			return this.getModel(key);
 		
-		return this.getCollection(key);
+		return Backbone.Model.prototype._get.apply(this, arguments)
 	},
+
+    _childModel: function(key){
+        // TEMP `childModels` can also be used since `models` breaks RelationalModel
+        return (this.models && this.models[key]) || (this.childModels && this.childModels[key])
+    },
 	
 	getCollection: function(key){
 		
@@ -111,9 +190,9 @@ _.extend(Backbone.Model.prototype, {
 		// get the collection info for setup and determine if a Collection was given
 		var CollInfo = this.collections && this.collections[key];
 
-                // is CollInfo a function (but not a Collection)? Call it to get the info
-                if( CollInfo && _.isFunction(CollInfo) && CollInfo.prototype && !CollInfo.prototype.toJSON && !CollInfo.prototype.fetch )
-                        CollInfo = CollInfo()
+        // is CollInfo a function (but not a Collection)? Call it to get the info
+        if( CollInfo && _.isFunction(CollInfo) && CollInfo.prototype && !CollInfo.prototype.toJSON && !CollInfo.prototype.fetch )
+            CollInfo = CollInfo()
 
 		var CollGiven = CollInfo && CollInfo.prototype && CollInfo.prototype.toJSON && CollInfo.prototype.fetch;
 		
@@ -155,6 +234,53 @@ _.extend(Backbone.Model.prototype, {
 		return Coll;
 	},
 	
+	getModel: function(key){
+
+		this.__childModels = this.__childModels || {};
+
+		// model already initialized
+		if( this.__childModels[key] )
+			return this.__childModels[key];
+
+		// get the collection info for setup and determine if a Collection was given
+		var info = this._childModel(key);
+
+        // is CollInfo a function (but not a Collection)? Call it to get the info
+        if( info && _.isFunction(info) && info.prototype && !info.prototype.toJSON && !info.prototype.fetch )
+            info = info()
+
+		// was a model given? (instead of a hash {})
+		var infoIsModel = info && info.prototype && info.prototype.toJSON && info.prototype.fetch;
+
+		var ChildModel = infoIsModel ? info : (info.model ? info.model : Backbone.Model);
+
+		// look for model attributes on this model
+		var attributes = this.attributes[key] && _.isObject(this.attributes[key]) ? this.attributes[key] : {};
+
+		// were we given an ID key? get the id from the attributes on this model
+		if( info.id ) attributes[ChildModel.prototype.idAttribute] = this.attributes[info.id];
+
+		var id = attributes[ChildModel.prototype.idAttribute];
+
+		// if a parent collection was given, attempt to lookup the model (or create it)
+		if( id && info.coll ){
+			var Model = info.fetch ? info.coll.getOrFetch(id, this._childModelFetched.bind(this, key)) : info.coll.getOrCreate(id)
+
+		// else, no collection, manually create the model
+		}else{
+			var Model = new ChildModel(attributes)
+			if( info.fetch ) Model.fetch({success:this._childModelFetched.bind(this, key)});
+		}
+
+		Model.parentModel = this;
+
+		return this.__childModels[key] = Model;
+	},
+
+    _childModelFetched: function(key, model){
+        this.trigger('model:'+key+':fetch', model)
+    },
+
 	_set: Backbone.Model.prototype.set,
 	
 	set: function(key, val, options){
@@ -168,12 +294,21 @@ _.extend(Backbone.Model.prototype, {
 			(attrs = {})[key] = val;
 		}
 		
+        // if `key` is a child collection, update it
 		if( self.__childCollections )
 		_.each(attrs, function(val, key){
 			if( self.__childCollections[key] )
 				self.__childCollections[key].update(val);
 		})
+        
+        // if `key` is a child model, clear the model to force `getModel` to run again
+        if( self.__childModels )
+		_.each(attrs, function(val, key){
+			if( self.__childModels[key] )
+				delete self.__childModels[key];
+		})
 		
+        // continue on with normal `set` logic
 		return Backbone.Model.prototype._set.apply(this, arguments);
 	}
 	
