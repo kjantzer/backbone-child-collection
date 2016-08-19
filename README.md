@@ -16,30 +16,39 @@ var Employees = Backbone.ChildCollection.extend({
 })
 
 var Company = Backbone.Model.extend({
-	
 	urlRoot: '/api/company'
-
 	collections: {
 		'employees': Employees
 	}
-	
 });
 
 var myCompany = new Company({id: 1, name: 'My Company'});
 
-myCompany.getCollection('employees') // returns collection of company employees
-
-// you can also use the normal `get` method.
-// If no attribute exists with that name, the collection will be returned
-myCompany.get('employees')
-
-myCompany.get('employees').url() // = /api/company/1/employees
-
+console.log( myCompany.get('employees') )
+console.log( myCompany.get('employees').url() ) // = /api/company/1/employees
 
 // child collections have reference back to parent model
 var employeeColl = myCompany.get('employees');
 
-employeeColl.parentModel == myCompany // true
+console.log( employeeColl.parentModel == myCompany ) // true
+
+// create employee models – POST: /api/company/1/employees
+myCompany.get('employees').create([
+	{id: 1, name: 'John Doe'},
+	{id: 2, name: 'Jane Doe'}
+])
+
+// Setup a computer model with a link to a single employee model
+var Computer = Backbone.Model.extend({
+	models: {
+		'employee': {id: 'employee_id', coll: myCompany.get('employees')}
+	}
+});
+
+var computer = new Computer({'employee_id':'1'})
+
+console.log( computer.get('employee') ) // John Doe Model
+console.log( computer.get('employee').get('name') ) // "John Doe"
 
 ```
 
@@ -55,7 +64,8 @@ var myCompany = new Company({
 	id: 1,
 	name: 'My Company',
 	
-	// this conflicts with the child collection key, so will be used by the collection
+	// this conflicts with the child collection key,
+	// so will be used as model data when initializing the collection
 	employees: [
 		{name: 'Bob'},
 		{name: 'Jill'}
@@ -68,13 +78,7 @@ myCompany.get('employees');
 
 #### Collections setup
 
-You start by putting a list of `collections` on your model.
-
-```js
-collections: {} // no collections
-```
-
-Multiple structures are supported.
+You start by putting a list of `collections` on your model. Multiple structures are supported.
 
 ```js
 collections: {
@@ -91,22 +95,72 @@ collections: {
 }
 ```
 
+#### Models setup
+
+Sometimes you may want to translate a related ID to a real Model. To do this, setup `models`. Like Collections, you can specify a hash or a function that returns a hash
+
+```js
+/* assuming your model looks like:
+	{
+		id: 1, 
+		employee_id: 1,
+		more: 'attrs'
+	}
+*/
+models: {
+	'employee': {
+		id: 'employee_id', // the attribute on the model,
+		coll: EmployeesColl // where to lookup the id
+		
+		// optional
+		fetch: true // if `id` isn't found, it will be fetched from server
+	}
+}
+
+// later: `.get('employee')` == model
+```
+
+Models will also work by having the entire model attributes rather than just and ID. Like so...
+
+```js
+/* assuming your model looks like:
+	{
+		id: 1, 
+		employee: {
+			id: 1,
+			name: 'John Doe',
+			more: 'attrs'
+		},
+		more: 'attrs'
+	}
+*/
+models: {
+	'employee': Employee // will turn the attrs into a real Model
+}
+
+// later: `.get('employee')` == model
+```
+
 
 #### Properties and methods available
 
-`parentModel` – a reference to the parent model of this collection
+`[Collection/Model].parentModel` – a reference to the parent model of this collection/model
 
-`urlPath` – the path to be appended to the URL of the parent model.
+`Collection.urlPath` – the path to be appended to the URL of the parent model.
 
-`hasFetched` (BOOL) – Is set to `true` after a `fetch` happens.
+`Collection.hasFetched` (BOOL) – Is set to `true` after a `fetch` happens.
 
-`isFetching` (BOOL) – Will be set to `true` while the `fetch` method is happening.
+`[Collection/Model].isFetching` (BOOL) – Will be set to `true` while the `fetch` method is happening.
 
-`fetchOnce()` – Fetches collection if it has not been fetched yet. (Tests for `hasFetched`)
+`Collection.fetchOnce()` – Fetches collection if it has not been fetched yet. (Tests for `hasFetched`)
 
-`timeSinceLastFetch()` - Time in miliseconds since last fetched
+`Collection.timeSinceLastFetch()` - Time in miliseconds since last fetched
 
-`fetch({stale:10000})` - Add a `stale` option to signify when the collection data becomes stale. A `fetch` request will not follow through until the data is stale.
+`Collection.stale` - if set, `fetch` will only make request once data is given `ms` stale.
+
+`Collection.fetch({stale:10000})` - Overrides `.stale` option to signify when the collection data becomes stale. A `fetch` request will not follow through until the data is stale.
+
+`Model.needsFetching`
 
 ## License
 
