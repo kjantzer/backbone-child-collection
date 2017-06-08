@@ -1,6 +1,6 @@
-# Backbone Child Collection 0.7.2
+# Backbone Child Collection 0.9.0
 
-![Version 0.7.2](https://img.shields.io/badge/Version-0.7.2-blue.svg)
+![Version 0.9.0](https://img.shields.io/badge/Version-0.9.0-blue.svg)
 
 > Used for REST collection that is child of a parent model.
 > **Update:** support for child `models` is in the works.
@@ -148,7 +148,7 @@ models: {
 
 `Collection.urlPath` – the path to be appended to the URL of the parent model.
 
-`Collection.hasFetched` (BOOL) – Is set to `true` after a `fetch` happens.
+`[Collection/Model].hasFetched` (BOOL) – Is set to `true` after a `fetch` happens.
 
 `[Collection/Model].isFetching` (BOOL) – Will be set to `true` while the `fetch` method is happening.
 
@@ -161,6 +161,23 @@ models: {
 `Collection.fetch({stale:10000})` - Overrides `.stale` option to signify when the collection data becomes stale. A `fetch` request will not follow through until the data is stale.
 
 `Model.needsFetching`
+
+### Dot Notation
+
+Dot notation is supported when getting child collections and models.
+
+```js
+// collections can return a specific model by providing an index
+myCompany.get('employees.0.name')
+// aka
+myCompany.get('employees').at(0).get('name')
+
+// `first` and `last` are also supported
+myCompany.get('employees.first.name')
+myCompany.get('employees.last.name')
+```
+
+A benefit of using dot notation is if a nested item does not exist a fatal error will not occur.
 
 ## License
 
