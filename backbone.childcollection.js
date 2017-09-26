@@ -1,5 +1,5 @@
 /*
-	Backbone Child Collection 0.9.0
+	Backbone Child Collection 0.10.0
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -28,7 +28,11 @@ Backbone.Collection.prototype.getOrCreate = function(id, opts){
 		var ModelClass = this.model || Backbone.Model;
 
 		var data = {}
-		data[ModelClass.prototype.idAttribute] = id;
+
+		if( _.isObject(id) )
+			data = id;
+		else
+			data[ModelClass.prototype.idAttribute] = id;
 
 		// support for Backbone Relational
 		var model = ModelClass.findOrCreate
@@ -65,7 +69,7 @@ Backbone.Collection.prototype.getOrFetch = function(id, opts){
 		delete model.needsFetching;
 		model.isFetching = true;
 
-		model.fetch({data:(opts.data||null), success: function(){
+		var finishedCallback = function(){
 			delete model.isFetching
 			if( success ) success(model)
 
@@ -74,9 +78,12 @@ Backbone.Collection.prototype.getOrFetch = function(id, opts){
 				_.each(model._getOrFetchSuccess, function(fn){ fn(model) });
 				delete model._getOrFetchSuccess;
 			}
-		}, error: function(model){
-			if( success ) success(model)
-		}});
+		}
+
+		if( model.isNew() )
+			model.save({}, {success: finishedCallback, error: finishedCallback})
+		else
+			model.fetch({data:(opts.data||null), success: finishedCallback, error: finishedCallback});
 
 	// model currently fetching, stash the "success" callback on the model - it will be called when fetch completes
 	}else if( model.isFetching && success){
@@ -187,15 +194,23 @@ _.extend(Backbone.Model.prototype, {
 	// Overrides default to get a collection if no attribute for given `key` exists
 	get: function(key){
 		
-		var keys = key.split('.')
+		var keys = (key||'').split('.')
 		key = keys.shift()
 		var path = keys.join('.')
-		
-		// collection or model for this key?
+
+		// child collection matching key?
 		if( this.collections && this.collections[key] !== undefined )
 			return this.getCollection(key, path);
-		else if( this._childModel(key) )
+		
+		// child model matching key?
+		if( this._childModel(key) )
 			return this.getModel(key, path);
+		
+		// what about the parent model, does it have a "name" that matches?
+		if( this.parentModel && this.parentModel.name == key )
+			return this.parentModel
+		if( this.collection && this.collection.parentModel && this.collection.parentModel.name == key )
+			return this.collection.parentModel
 		
 		return Backbone.Model.prototype._get.apply(this, arguments)
 	},
@@ -213,7 +228,7 @@ _.extend(Backbone.Model.prototype, {
 
 		this.isFetching = true;
 
-		return Backbone.Model.prototype._fetch.apply(this, arguments)
+		return Backbone.Model.prototype._fetch.call(this, opts)
 	},
 
 	_childModel: function(key){
@@ -275,20 +290,20 @@ _.extend(Backbone.Model.prototype, {
 		
 		return path && Coll ? this._getPathFromCollection(Coll, path) : Coll;
 	},
-	
+
 	_getPathFromCollection: function(coll, path){
 		var keys = path.split('.')
 		var key = keys.shift()
 		path = keys.join('.')
 		var m = null;
-		
+
 		if( key == 'first' )
 			m = coll.first()
 		else if( key == 'last' )
 			m = coll.last()
 		else if( key.match(/^\d+$/) )
 			m = coll.at(key)
-		
+
 		return path ? m.get(path) : m
 	},
 	
@@ -336,7 +351,7 @@ _.extend(Backbone.Model.prototype, {
 		Model.parentModel = this;
 
 		this.__childModels[key] = Model;
-		
+
 		return path && Model ? Model.get(path) : Model
 	},
 
