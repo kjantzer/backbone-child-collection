@@ -1,22 +1,25 @@
-# Backbone Child Collection 0.9.0
+# Backbone Child Collection 0.10.0
 
-![Version 0.9.0](https://img.shields.io/badge/Version-0.9.0-blue.svg)
+![Version 0.10.0](https://img.shields.io/badge/Version-0.10.0-blue.svg)
 
-> Used for REST collection that is child of a parent model.
-> **Update:** support for child `models` is in the works.
+> Create simple relations between models and collections with limited overhead.
 
 ## Example
 
-```js
+#### Child Collection
 
-var Employee = Backbone.Model.extend()
+```js
 var Employees = Backbone.ChildCollection.extend({
-	model: Employee,
+	// url path will be appended to the url of the parent model
 	urlPath: 'employees'
 })
 
 var Company = Backbone.Model.extend({
 	urlRoot: '/api/company'
+	
+	name: 'company', // see below how this is used
+	
+	// setup all child collections with a key
 	collections: {
 		'employees': Employees
 	}
@@ -24,7 +27,6 @@ var Company = Backbone.Model.extend({
 
 var myCompany = new Company({id: 1, name: 'My Company'});
 
-console.log( myCompany.get('employees') )
 console.log( myCompany.get('employees').url() ) // = /api/company/1/employees
 
 // child collections have reference back to parent model
@@ -38,6 +40,19 @@ myCompany.get('employees').create([
 	{id: 2, name: 'Jane Doe'}
 ])
 
+var firstEmployee = myCompany.get('employees').first()
+
+// child models inside the child collections can traverse to the parent model
+firstEmployee.collection.parentModel == myCompany // true
+
+// of if you give the parent model a `name`, you can do this
+firstEmployee.get('company') == myCompany // true
+
+```
+
+#### Child Model
+
+```js
 // Setup a computer model with a link to a single employee model
 var Computer = Backbone.Model.extend({
 	models: {
@@ -59,18 +74,20 @@ console.log( computer.get('employee').get('name') ) // "John Doe"
 Model attributes and collection keys should not conflict unless you are wanting to preload the collection with data. If they keys are the same, the child collection with be returned and not the model attribute. However, if the model attribute is an array it will be added to the child collection.
 
 ```js
-// using the example from above...
-var myCompany = new Company({
+var jsonModelData = {
 	id: 1,
 	name: 'My Company',
 	
-	// this conflicts with the child collection key,
-	// so will be used as model data when initializing the collection
+	// this matches the child collection key,
+	// so when `get(employees)` is used, this data will be converted into a real collection
 	employees: [
 		{name: 'Bob'},
 		{name: 'Jill'}
 	]
-});
+}
+
+// using the example from above...
+var myCompany = new Company(jsonModelData);
 
 // returns collection with two employees, Bob and Jill
 myCompany.get('employees');
@@ -78,7 +95,7 @@ myCompany.get('employees');
 
 #### Collections setup
 
-You start by putting a list of `collections` on your model. Multiple structures are supported.
+You start by putting a list of `collections` on your model. *Multiple structures are supported.*
 
 ```js
 collections: {
