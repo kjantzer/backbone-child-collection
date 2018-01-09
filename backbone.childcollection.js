@@ -1,5 +1,5 @@
 /*
-	Backbone Child Collection 0.10.0
+	Backbone Child Collection 0.11.0
 	
 	Used for REST collection that is child of a parent model.
 	
@@ -11,6 +11,7 @@
 	TODO
 	- what happenns if the parentModel is new? should collection not fetch/save?
 	- if the model is destroyed, we should probably clean up all child collections
+	- allow for urlPath to be used to set a url on this model
 */
 
 // TODO: let `id` be a hash of attributes
@@ -34,16 +35,13 @@ Backbone.Collection.prototype.getOrCreate = function(id, opts){
 		else
 			data[ModelClass.prototype.idAttribute] = id;
 
-		// support for Backbone Relational
-		var model = ModelClass.findOrCreate
-				? ModelClass.findOrCreate(data)
-				: new ModelClass(data);
+		var model = new ModelClass(data);
 
 		model.needsFetching = true;
 
 		// add model to this collection
 		if( !opts || opts.add !== false )
-			this.add(model);
+			this.add(model, {silent:(opts&&opts.silent||false)});
 		else
 			model.collection = this;
 	}
@@ -183,6 +181,8 @@ Backbone.ChildCollection = Backbone.Collection.extend({
 	
 });
 
+var BackboneChildCollection_Model_Set = Backbone.Model.prototype.set
+
 _.extend(Backbone.Model.prototype, {
 	
 	// DEPRECATED - just use `get`
@@ -206,12 +206,22 @@ _.extend(Backbone.Model.prototype, {
 		if( this._childModel(key) )
 			return this.getModel(key, path);
 		
-		// what about the parent model, does it have a "name" that matches?
-		if( this.parentModel && this.parentModel.name == key )
-			return this.parentModel
-		if( this.collection && this.collection.parentModel && this.collection.parentModel.name == key )
-			return this.collection.parentModel
+		// traversing up the parents for every `get` is expensive when dealing with lots of models so only do it if no attribute matches
+		if( this.attributes[key] === undefined ){
+			
+			// traverse up the parent models to check for one with a matching "name"
+			let p = this.parentModel || (this.collection && this.collection.parentModel)
+			while(p){
+				if( p.name == key){break;} // we found a matching parent; stop searching
+				p = p.parentModel || (p.collection && p.collection.parentModel)
+			}
+			
+			// if we found a parentModel with a matching name, return it (or get more via path)
+			if( p )
+				return path ? p.get(path) : p
+		}
 		
+		// else, default to normal get of `attributes`
 		return Backbone.Model.prototype._get.apply(this, arguments)
 	},
 
@@ -288,6 +298,9 @@ _.extend(Backbone.Model.prototype, {
 		// make sure parent model is set on the collection
 		Coll.parentModel = this;
 		
+		if( this.name && !Coll[this.name] )
+			Coll[this.name] = this
+		
 		return path && Coll ? this._getPathFromCollection(Coll, path) : Coll;
 	},
 
@@ -301,8 +314,10 @@ _.extend(Backbone.Model.prototype, {
 			m = coll.first()
 		else if( key == 'last' )
 			m = coll.last()
-		else if( key.match(/^\d+$/) )
-			m = coll.at(key)
+		else if( key.match(/^(?:index|at)(\d+)$/) )
+			m = coll.at(key.match(/^(?:index|at)(\d+)$/)[1])
+		else if( key )
+			m = coll.get(key)
 
 		return path ? m.get(path) : m
 	},
@@ -320,7 +335,7 @@ _.extend(Backbone.Model.prototype, {
 
 		// is CollInfo a function (but not a Collection)? Call it to get the info
 		if( info && _.isFunction(info) && info.prototype && !info.prototype.toJSON && !info.prototype.fetch )
-			info = info()
+			info = info.call(this)
 
 		// was a model given? (instead of a hash {})
 		var infoIsModel = info && info.prototype && info.prototype.toJSON && info.prototype.fetch;
@@ -331,20 +346,41 @@ _.extend(Backbone.Model.prototype, {
 		var attributes = this.attributes[key] && _.isObject(this.attributes[key]) ? this.attributes[key] : {};
 
 		// were we given an ID key? get the id from the attributes on this model
-		if( info.id ) attributes[ChildModel.prototype.idAttribute] = this.attributes[info.id];
+		if( info.id ){
+			attributes[ChildModel.prototype.idAttribute] = this.attributes[info.id];
+			
+			// save link from id name to the child model key.
+			// this way when the id name value is changed we can update the child model. See `set` below
+			if( info.id != key ){
+				this.__childModelIDLookup = this.__childModelIDLookup || {}
+				this.__childModelIDLookup[info.id] = key
+			}
+		}
 
 		var id = attributes[ChildModel.prototype.idAttribute];
 		
 		// cannot get a model, no value for ID
 		if( info.id && !id ) return null;
 
+		// see if we have a parent collection we are supposed to retrieve the model from
+		let coll = id && info.coll
+		
+		// allow coll to be a string name in which case we will look for it on this model.
+		if( _.isString(coll) ){
+			coll = this.get(coll) // get the collection based on string name
+			if( !coll ){
+				console.warn('ChildCollection: no parent collection called ‘'+info.coll+'’ found on', this)
+			}
+		}
+
 		// if a parent collection was given, attempt to lookup the model (or create it)
-		if( id && info.coll ){
-			var Model = info.fetch ? info.coll.getOrFetch(id, this._childModelFetched.bind(this, key)) : info.coll.getOrCreate(id)
+		if( coll ){
+			var Model = info.fetch ? coll.getOrFetch(id, {success:this._childModelFetched.bind(this, key), silent:true}) : coll.getOrCreate(id)
 
 		// else, no collection, manually create the model
 		}else{
 			var Model = new ChildModel(attributes)
+			// TODO: allow for urlPath to be used to set a url on this model
 			if( info.fetch && id ) Model.fetch({success:this._childModelFetched.bind(this, key)});
 		}
 
@@ -361,8 +397,6 @@ _.extend(Backbone.Model.prototype, {
 			this.trigger('model:'+key+':fetch', model)
 		}.bind(this))
 	},
-
-	_set: Backbone.Model.prototype.set,
 	
 	set: function(key, val, options){
 		
@@ -387,10 +421,12 @@ _.extend(Backbone.Model.prototype, {
 		_.each(attrs, function(val, key){
 			if( self.__childModels[key] )
 				delete self.__childModels[key];
+			else if( self.__childModelIDLookup && self.__childModelIDLookup[key] )
+				delete self.__childModels[self.__childModelIDLookup[key]];
 		})
 		
 		// continue on with normal `set` logic
-		return Backbone.Model.prototype._set.apply(this, arguments);
+		return BackboneChildCollection_Model_Set.apply(this, arguments);
 	}
 	
 })
