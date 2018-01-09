@@ -1,13 +1,12 @@
-# Backbone Child Collection 0.10.0
+# Backbone Child Collection 0.11.0
 
-![Version 0.10.0](https://img.shields.io/badge/Version-0.10.0-blue.svg)
+![Version 0.11.0](https://img.shields.io/badge/Version-0.11.0-blue.svg)
 
 > Create simple relations between models and collections with limited overhead.
 
-## Example
+## Child Collection Example
 
-#### Child Collection
-
+Let's define and create a model with a collection
 ```js
 var Employees = Backbone.ChildCollection.extend({
 	// url path will be appended to the url of the parent model
@@ -25,22 +24,37 @@ var Company = Backbone.Model.extend({
 	}
 });
 
+// instantiate a new model
 var myCompany = new Company({id: 1, name: 'My Company'});
+```
 
+The url for child collections is created automatically using the URL from parent models
+
+```js
 console.log( myCompany.get('employees').url() ) // = /api/company/1/employees
+```
 
-// child collections have reference back to parent model
+The collections have a reference to the parent model
+```js
 var employeeColl = myCompany.get('employees');
 
 console.log( employeeColl.parentModel == myCompany ) // true
+```
 
+Here's some more use cases.
+
+```js
 // create employee models – POST: /api/company/1/employees
 myCompany.get('employees').create([
 	{id: 1, name: 'John Doe'},
 	{id: 2, name: 'Jane Doe'}
 ])
 
+// there's more than one to access children
 var firstEmployee = myCompany.get('employees').first()
+//var firstEmployee = myCompany.get('employees.first')
+//var firstEmployee = myCompany.get('employees.at0')
+//var firstEmployee = myCompany.get('employees.1') // ID
 
 // child models inside the child collections can traverse to the parent model
 firstEmployee.collection.parentModel == myCompany // true
@@ -50,7 +64,7 @@ firstEmployee.get('company') == myCompany // true
 
 ```
 
-#### Child Model
+## Child Model Example
 
 ```js
 // Setup a computer model with a link to a single employee model
@@ -66,6 +80,8 @@ console.log( computer.get('employee') ) // John Doe Model
 console.log( computer.get('employee').get('name') ) // "John Doe"
 
 ```
+
+> Note: a model can have both collections *and* models defined.
 
 ## Documentation
 
@@ -185,16 +201,29 @@ Dot notation is supported when getting child collections and models.
 
 ```js
 // collections can return a specific model by providing an index
-myCompany.get('employees.0.name')
+myCompany.get('employees.at0.name')
 // aka
 myCompany.get('employees').at(0).get('name')
 
 // `first` and `last` are also supported
 myCompany.get('employees.first.name')
 myCompany.get('employees.last.name')
+
+// as is model ID
+myCompany.get('employees.1.name')
 ```
 
 A benefit of using dot notation is if a nested item does not exist a fatal error will not occur.
+
+
+## Changelog
+
+#### v0.11.0
+- dot notation logic changed: index retrieval must be prefixed with "at". ex: `at0`. If not, a normal `get()` will happen
+- access to parentModel via `name` will traverse all the way to the top (previously limited to first parentModel)
+- getOrFetch accepts `silent` option
+- model info defined as a function will be called in context of model
+- model info.coll can be a string which will retrieved with dot notation
 
 ## License
 
