@@ -1,8 +1,8 @@
-# Backbone Child Collection 0.11.0
+# Backbone Child Collection 1.1.0
 
-![Version 0.11.0](https://img.shields.io/badge/Version-0.11.0-blue.svg)
+![Version 1.1.0](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 
-> Create simple relations between models and collections with limited overhead.
+> Create lazy-loading relations between Backbone.js models and collections with minimal effort. Perfect for REST APIs
 
 ## Child Collection Example
 
@@ -128,6 +128,27 @@ collections: {
 }
 ```
 
+As of v0.12.0, child collections can be nested under a group name. This can be helpful when your collections grow in number and you'd like to organize.
+
+```js
+ // group-coll.js
+ module.exports = {
+	 'one': Coll1
+	 'two': Coll2
+ }
+ 
+ // model.js
+ collections: {
+	 'employees': EmployeesColl,
+	 'group': require('./group-coll')
+ }
+ 
+ // using
+ model.get('employees')
+ model.get('group/one')
+ model.get('group/two')
+```
+
 #### Models setup
 
 Sometimes you may want to translate a related ID to a real Model. To do this, setup `models`. Like Collections, you can specify a hash or a function that returns a hash
@@ -143,7 +164,13 @@ Sometimes you may want to translate a related ID to a real Model. To do this, se
 models: {
 	'employee': {
 		id: 'employee_id', // the attribute on the model,
-		coll: EmployeesColl // where to lookup the id
+		
+		// where to lookup the id
+		coll: EmployeesColl // instance
+		coll: 'EmployeesColl' // string name of instance on this model or global window (useful when instance not defined on load)
+		coll: function(id, key){ // you can also choose to lookup the model with a custom function instead
+			return MyLookupCollection.findASpecialModel(id)
+		},
 		
 		// optional
 		fetch: true // if `id` isn't found, it will be fetched from server
@@ -178,6 +205,8 @@ models: {
 #### Properties and methods available
 
 `[Collection/Model].parentModel` – a reference to the parent model of this collection/model
+
+`Model.refColl` - a reference to the collection they were fetched from. Only set when a child model is setup with a `coll` option
 
 `Collection.urlPath` – the path to be appended to the URL of the parent model.
 
@@ -215,8 +244,24 @@ myCompany.get('employees.1.name')
 
 A benefit of using dot notation is if a nested item does not exist a fatal error will not occur.
 
+## TODO
+- Add support for module.exports
 
 ## Changelog
+
+#### v1.1.0 - 9/14/18
+- child model lookup via `coll` property can be a custom function.
+
+#### v1.0.0 - 6/26/18
+- ready for commonjs loaders such as Webpack
+
+#### v0.12.0 - 6/25/18
+- child `collections` can be grouped under a common key – helpful for organized modular loading
+- child models have reference to collection they fetched from via `refColl`
+
+#### v0.11.1
+- `id` is not longer required, they key name will be used to find the ID on the model attributes
+- if model `info.coll` is a string, it will also check for it on the window
 
 #### v0.11.0
 - dot notation logic changed: index retrieval must be prefixed with "at". ex: `at0`. If not, a normal `get()` will happen
@@ -227,4 +272,4 @@ A benefit of using dot notation is if a nested item does not exist a fatal error
 
 ## License
 
-MIT © [Kevin Jantzer](http://kevinjantzer.com)
+MIT © [Kevin Jantzer](http://kevinjantzer.com) - Blackstone Publishing
